@@ -4,16 +4,17 @@ import pymc3 as pm, theano.tensor as tt
 from pymc3.backends import Text
 import matplotlib.pyplot as plt
 import sys
+import re
 
 # Handling inputs
 args = sys.argv
 
-if (len(args) == 3):
-    from_t =  args[1]
-    to_t =  args[2]
-    print "Initialising with custom t's"
+if (len(args) == 2):
+    from_t =  int(args[1])
+    print "Custom: Running from i=%d" %(from_t)
 else:
-    print "Initialising with default t's"
+    from_t = 0
+    print "Default: Running from i=0"
 
 ts = pd.read_csv('../data/ts14-15.csv')
 ts = ts.drop('Unnamed: 0', 1)
@@ -122,20 +123,13 @@ ts = ts.sort_values(by='kick_off', ascending=1)
 # If run with T == 1, only fit timestep 1 without AR
 starting_points = []
 models = []
-trace_len = 60000
-num_weeks = 38
+trace_len = 1000
+num_weeks = 5
 
-if (len(args) == 3):
-    # Set time periord
-    from_t =  int(args[1])
-    to_t =  int(args[2])
+# Iterate over all 38 games (0 to 37)
+for i in range(from_t,num_weeks):
 
-else:
-    from_t = 1
-    to_t = num_weeks
-
-for T in range(from_t,to_t):
-    print "\nTrain including week: %d, Predict week: %d" %(T-1, T)
+    print "\nTrain week %d of %d (i=%d)" %(i+1, num_weeks, i)
     
     with pm.Model() as exp_2:
         # global model parameters
@@ -168,7 +162,11 @@ for T in range(from_t,to_t):
         # atts_ni ~ latent attack paramter not respecting the identifiability constraint yet
         # Keep innovation variance global
         # For first run range(1,1) won't execute
-        for t in range(1,T):
+
+        # Only runs if i != 0 (i.e. not in the first, since no t-1)
+        for t in range(1,i+1):
+            if (t == 1):
+                print "\nBuild plates for t=1 to t=%d" %(i)
             
             # assumption 1: tau_att will be a <num_teams> sized vector of priors
             # assumption 2: atts_ni are ordered by team index (the mask later picks the right parameters)
@@ -208,23 +206,17 @@ for T in range(from_t,to_t):
         # If no previous model runs, find map as starting point
         # otherwise use estimates from previous model run
         # No starting point for atts_ni{t+1} and defs respectively, could use atts_ni{t} estimates instead
-        if (T == 1):
+        if (i == 0):
             start = pm.find_MAP()
-            starting_points.append(start)
         else:
-            if (len(args) == 3):
-                # Load chain from_t-1
-                tracename = "trace_exp_2_" + str(from_t - 1)
-                print "Load last trace '" + tracename + "'"
-                trace = pm.backends.text.load(tracename)
-                start = {'atts_ni0':0, 'tau_att_log':0, 'intercept':0, 'home':0, 'defs_ni0':0, 'tau_def_log':0}
-
-            start = {key: np.mean(trace[key], axis=0) for key in start.keys()}
-            starting_points.append(start)
+            tracename = "trace_exp_2_" + str(i-1)
             
+            print "Load last trace '" + tracename + "'"
+            
+            trace_loaded = pm.backends.text.load(tracename)
+            pattern = re.compile("(atts\d|defs\d|.*_ni" + str(i) + ")")
+            start = {key: np.mean(trace_loaded[key], axis=0) for key in trace_loaded.varnames if pattern.match(key) == None}
+
         step = pm.Metropolis()
-        db = Text("trace_exp_2_{0}".format(T))
+        db = Text("trace_exp_2_{0}".format(i))
         trace = pm.sample(trace_len, step, start=start, trace=db)
-        
-        # Save away model for later analysis
-        models.append(exp_2)

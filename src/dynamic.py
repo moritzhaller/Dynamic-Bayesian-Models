@@ -15,7 +15,7 @@ if (len(args) == 3):
 else:
     print "Initialising with default t's"
 
-ts = pd.read_csv('./data/ts14-15.csv')
+ts = pd.read_csv('../data/ts14-15.csv')
 ts = ts.drop('Unnamed: 0', 1)
 
 # Build team index
@@ -126,8 +126,10 @@ trace_len = 60000
 num_weeks = 38
 
 if (len(args) == 3):
+    # Set time periord
     from_t =  int(args[1])
     to_t =  int(args[2])
+
 else:
     from_t = 1
     to_t = num_weeks
@@ -210,6 +212,13 @@ for T in range(from_t,to_t):
             start = pm.find_MAP()
             starting_points.append(start)
         else:
+            if (len(args) == 3):
+                # Load chain from_t-1
+                tracename = "trace_exp_2_" + str(from_t - 1)
+                print "Load last trace '" + tracename + "'"
+                trace = pm.backends.text.load(tracename)
+                start = {'atts_ni0':0, 'tau_att_log':0, 'intercept':0, 'home':0, 'defs_ni0':0, 'tau_def_log':0}
+
             start = {key: np.mean(trace[key], axis=0) for key in start.keys()}
             starting_points.append(start)
             

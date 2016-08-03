@@ -3,6 +3,17 @@ import pandas as pd
 import pymc3 as pm, theano.tensor as tt
 from pymc3.backends import Text
 import matplotlib.pyplot as plt
+import sys
+
+# Handling inputs
+args = sys.argv
+
+if (len(args) == 3):
+    from_t =  args[1]
+    to_t =  args[2]
+    print "Initialising with custom t's"
+else:
+    print "Initialising with default t's"
 
 ts = pd.read_csv('./data/ts14-15.csv')
 ts = ts.drop('Unnamed: 0', 1)
@@ -114,7 +125,14 @@ models = []
 trace_len = 60000
 num_weeks = 38
 
-for T in range(1,num_weeks):
+if (len(args) == 3):
+    from_t =  int(args[1])
+    to_t =  int(args[2])
+else:
+    from_t = 1
+    to_t = num_weeks
+
+for T in range(from_t,to_t):
     print "\nTrain including week: %d, Predict week: %d" %(T-1, T)
     
     with pm.Model() as exp_2:
